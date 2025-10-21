@@ -1,11 +1,12 @@
 package com.nobu.a5ch
 
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -19,8 +20,8 @@ class TwitterSearchActivity : AppCompatActivity() {
     private var allComments = listOf<Comment>()
     private var settings = AppSettings()
 
-    // Twitter Bearer Token（あなたのトークンに置き換える）
-    private val BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAIyu4wEAAAAAWcipDBMtgy0tsuvVf7mRZWObakg%3D6g9ODKJYGm9Lt344LauudiHxTxK7OiWddSPvIkMbBURSSp8uEM"
+    // Twitter Bearer Token
+    private val BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAIyu4wEAAAAAKINmHRi6dd%2FrAyIRlJw6462%2F%2BFI%3DOxL2QYYXymtlrvp9cI6WLsKMMvkWizGjgcK39iEJEkF0sByUzu"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,7 +103,7 @@ class TwitterSearchActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
             setOnClickListener {
-                startCommentFlow()
+                startCommentFlowWithOverlay()
             }
         }
         controlPanel.addView(startButton)
@@ -130,24 +131,45 @@ class TwitterSearchActivity : AppCompatActivity() {
         }
     }
 
-    private fun startCommentFlow() {
+    private fun startCommentFlowWithOverlay() {
         if (allComments.isEmpty()) {
+            android.util.Log.w("TwitterSearch", "コメントがありません")
             return
         }
 
-        commentStreamView.clearComments()
+        // オーバーレイサービスを起動
+        startOverlayService()
 
+        // 短い遅延後、コメントを送信開始
         Thread {
             try {
+                java.lang.Thread.sleep(500) // Service の起動を待つ
                 for (comment in allComments) {
-                    runOnUiThread {
-                        commentStreamView.addComment(comment)
-                    }
+                    val service = CommentOverlayService.getInstance()
+                    service?.addComment(comment)
                     java.lang.Thread.sleep(500L)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }.start()
+
+        // オプション：アクティビティをバックグラウンドに
+        moveTaskToBack(true)
+    }
+
+    private fun startOverlayService() {
+        val intent = Intent(this, CommentOverlayService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            @Suppress("DEPRECATION")
+            startService(intent)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // アクティビティが閉じられてもオーバーレイは続く
     }
 }

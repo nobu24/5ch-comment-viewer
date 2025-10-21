@@ -1,29 +1,34 @@
 package com.nobu.a5ch
 
+import android.content.Intent
+import android.os.Build
+import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+
 class CommentDisplayActivity : AppCompatActivity() {
 
     private lateinit var commentStreamView: CommentStreamView
-    private var settings = AppSettings()
     private var allComments = listOf<Comment>()
-    private var isLoading = false
+    private var settings = AppSettings()
+    private var threadUrl = ""
+    private var threadTitle = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val threadUrl = intent.getStringExtra("thread_url") ?: ""
-        val threadTitle = intent.getStringExtra("thread_title") ?: "スレッド"
+        // インテントから情報を取得
+        threadUrl = intent.getStringExtra("thread_url") ?: ""
+        threadTitle = intent.getStringExtra("thread_title") ?: "スレッド"
 
         val mainLayout = FrameLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(
@@ -44,7 +49,7 @@ class CommentDisplayActivity : AppCompatActivity() {
         val controlPanel = LinearLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                350
+                FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = android.view.Gravity.BOTTOM
             }
@@ -53,21 +58,21 @@ class CommentDisplayActivity : AppCompatActivity() {
             setPadding(16, 16, 16, 16)
         }
 
-        val titleView = TextView(this).apply {
+        val titleLabel = TextView(this).apply {
             text = threadTitle
-            textSize = 14f
             setTextColor(android.graphics.Color.WHITE)
+            textSize = 14f
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                bottomMargin = 12
+                bottomMargin = 8
             }
         }
-        controlPanel.addView(titleView)
+        controlPanel.addView(titleLabel)
 
         val loadButton = Button(this).apply {
-            text = "コメント読み込み"
+            text = "コメント取得"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -75,69 +80,94 @@ class CommentDisplayActivity : AppCompatActivity() {
                 bottomMargin = 8
             }
             setOnClickListener {
-                loadCommentsFromUrl(threadUrl)
+                loadComments()
             }
         }
         controlPanel.addView(loadButton)
 
         val startButton = Button(this).apply {
-            text = "コメント自動流し開始"
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 12
-            }
-            setOnClickListener {
-                startAutoScroll()
-            }
-        }
-        controlPanel.addView(startButton)
-
-        val infoText = TextView(this).apply {
-            text = "まず「読み込み」を押してからスタートをタップしてください"
-            textSize = 12f
-            setTextColor(android.graphics.Color.GRAY)
+            text = "コメント流し開始"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
+            setOnClickListener {
+                startCommentFlowWithOverlay()
+            }
         }
-        controlPanel.addView(infoText)
+        controlPanel.addView(startButton)
 
         mainLayout.addView(controlPanel)
         setContentView(mainLayout)
     }
 
-    private fun loadCommentsFromUrl(threadUrl: String) {
-        isLoading = true
-
-        lifecycleScope.launch(Dispatchers.Main) {
-            // ダミーコメントを使用
-            allComments = DummyData.getComments("1001")
-            android.util.Log.d("CommentDisplay", "${allComments.size}件のコメントを取得しました")
-            isLoading = false
-        }
-    }
-
-    private fun startAutoScroll() {
-        if (allComments.isEmpty()) {
+    private fun loadComments() {
+        if (threadUrl.isEmpty()) {
+            android.util.Log.e("CommentDisplay", "スレッド URL が設定されていません")
             return
         }
 
-        commentStreamView.clearComments()
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val client = A5chClient()
+                val comments = client.getComments(threadUrl)
 
+                withContext(Dispatchers.Main) {
+                    allComments = comments
+                    android.util.Log.d("CommentDisplay", "${comments.size}件のコメントを取得しました")
+
+                    // 確認用トースト表示（オプション）
+                    if (comments.isEmpty()) {
+                        android.widget.Toast.makeText(
+                            this@CommentDisplayActivity,
+                            "コメントが取得できませんでした",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    android.util.Log.e("CommentDisplay", "エラー: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun startCommentFlowWithOverlay() {
+        if (allComments.isEmpty()) {
+            android.util.Log.w("CommentDisplay", "コメントがありません")
+            return
+        }
+
+        // オーバーレイサービスを起動
+        startOverlayService()
+
+        // 短い遅延後、コメントを送信開始
         Thread {
             try {
+                java.lang.Thread.sleep(500) // Service の起動を待つ
                 for (comment in allComments) {
-                    runOnUiThread {
-                        commentStreamView.addComment(comment)
-                    }
+                    val service = CommentOverlayService.getInstance()
+                    service?.addComment(comment)
                     java.lang.Thread.sleep(500L)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }.start()
+
+        // アクティビティをバックグラウンドに
+        moveTaskToBack(true)
+    }
+
+    private fun startOverlayService() {
+        val intent = Intent(this, CommentOverlayService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            @Suppress("DEPRECATION")
+            startService(intent)
+        }
     }
 }

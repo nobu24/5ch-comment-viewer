@@ -1,11 +1,11 @@
 package com.nobu.a5ch
 
 import android.content.Intent
+import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
 
@@ -19,11 +19,13 @@ class MainActivity : AppCompatActivity() {
             )
             orientation = LinearLayout.VERTICAL
             setPadding(16, 16, 16, 16)
+            setBackgroundColor(android.graphics.Color.WHITE)
         }
 
-        val titleView = TextView(this).apply {
-            text = "5ch実況ビューア"
-            textSize = 24f
+        val titleTextView = TextView(this).apply {
+            text = "5ch 実況ビューア"
+            textSize = 28f
+            setTextColor(android.graphics.Color.BLACK)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -31,23 +33,24 @@ class MainActivity : AppCompatActivity() {
                 bottomMargin = 32
             }
         }
-        mainLayout.addView(titleView)
+        mainLayout.addView(titleTextView)
 
-        val subTitleView = TextView(this).apply {
+        val subtitleTextView = TextView(this).apply {
             text = "コメントソースを選択"
             textSize = 16f
+            setTextColor(android.graphics.Color.GRAY)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                bottomMargin = 16
+                bottomMargin = 24
             }
         }
-        mainLayout.addView(subTitleView)
+        mainLayout.addView(subtitleTextView)
 
-        // 5ch ボタン
-        val a5chButton = Button(this).apply {
-            text = "5ch スレッド"
+        // 5ch スレッドボタン
+        val threadButton = Button(this).apply {
+            text = "5CH スレッド"
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -58,37 +61,32 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(this@MainActivity, ThreadListActivity::class.java))
             }
         }
-        mainLayout.addView(a5chButton)
+        mainLayout.addView(threadButton)
 
-        // Twitter ボタン
+        // Twitter / X ボタン（グレーアウト）
         val twitterButton = Button(this).apply {
-            text = "Twitter / X"
+            text = "TWITTER / X (準備中)"
+            isEnabled = false
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 bottomMargin = 12
-            }
-            setOnClickListener {
-                startActivity(Intent(this@MainActivity, TwitterSearchActivity::class.java))
             }
         }
         mainLayout.addView(twitterButton)
 
-        // YouTube ボタン（グレーアウト）
+        // YouTube ボタン
         val youtubeButton = Button(this).apply {
-            text = "YouTube (準備中)"
+            text = "YOUTUBE (準備中)"
+            isEnabled = false
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 12
-            }
-            isEnabled = false
+            )
         }
         mainLayout.addView(youtubeButton)
 
         setContentView(mainLayout)
     }
 }
-

@@ -9,6 +9,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class Thread(
     val id: String,
@@ -37,8 +39,8 @@ data class AppSettings(
 object DummyData {
     fun getThreads(): List<Thread> {
         return listOf(
-            Thread("1001", "【速報】今日のアニメ実況スレ",
-                "https://sora.5ch.net/test/read.cgi/livetbs/1760909530/l50", 850, 420),
+            Thread("1001", "【株価】株式投資スレッド",
+                "https://hayabusa9.5ch.net/test/read.cgi/livemarket1/1761022634/l50", 850, 420),
             Thread("1002", "ドラマ感想スレッド",
                 "https://sora.5ch.net/test/read.cgi/livetbs/1760909530/l50", 620, 310),
             Thread("1003", "スポーツ中継実況",
@@ -85,47 +87,45 @@ class A5chClient {
         .build()
 
     suspend fun getComments(threadUrl: String): List<Comment> {
-        return try {
-            val request = Request.Builder()
-                .url(threadUrl)
-                .header("User-Agent", USER_AGENT)
-                .build()
+        return withContext(Dispatchers.IO) {
+            try {
+                android.util.Log.d("A5chClient", "取得開始: $threadUrl")
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return emptyList()
+                val request = Request.Builder()
+                    .url(threadUrl)
+                    .header("User-Agent", USER_AGENT)
+                    .build()
 
-            val html = response.body?.string() ?: return emptyList()
-            val doc = Jsoup.parse(html)
-
-            val comments = mutableListOf<Comment>()
-            var number = 1
-
-            // 5chの投稿を解析
-            doc.select(".thread").forEach { element ->
-                try {
-                    val name = element.select(".name").text().takeIf { it.isNotEmpty() } ?: "名無しさん"
-                    val body = element.select(".message").text().takeIf { it.isNotEmpty() } ?: ""
-                    val date = element.select(".date").text().takeIf { it.isNotEmpty() } ?: ""
-
-                    if (body.isNotEmpty()) {
-                        comments.add(
-                            Comment(
-                                number = number++,
-                                name = name,
-                                body = body,
-                                date = date
-                            )
-                        )
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                val response = client.newCall(request).execute()
+                if (!response.isSuccessful) {
+                    android.util.Log.e("A5chClient", "HTTP Error: ${response.code}")
+                    return@withContext emptyList()
                 }
-            }
 
-            comments.take(50)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
+                val html = response.body?.string() ?: return@withContext emptyList()
+                val doc = Jsoup.parse(html)
+
+                // article 要素の内容を確認
+                val article = doc.select("article").first()
+                if (article != null) {
+                    android.util.Log.d("A5chClient", "article 内容:\n${article.html().take(1000)}")
+                }
+
+                // 複合セレクタで抽出した要素の詳細を出力
+                val messages = doc.select(".post, article, [class*=message], [class*=post]")
+                android.util.Log.d("A5chClient", "抽出した投稿数: ${messages.size}")
+
+                // 最初の3件の要素を詳しく出力
+                messages.take(3).forEachIndexed { index, element ->
+                    android.util.Log.d("A5chClient", "要素 $index: tag=${element.tagName()}, class=${element.attr("class")}, text=${element.text().take(100)}")
+                }
+
+                emptyList()
+            } catch (e: Exception) {
+                android.util.Log.e("A5chClient", "Exception: ${e.message}")
+                e.printStackTrace()
+                emptyList()
+            }
         }
     }
 }

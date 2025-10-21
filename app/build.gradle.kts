@@ -15,6 +15,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // local.properties から Bearer Token を読み込む
+        val props = project.properties
+        val token = props["TWITTER_BEARER_TOKEN"]?.toString() ?: ""
+        buildConfigField("String", "TWITTER_BEARER_TOKEN", "\"$token\"")
     }
 
     buildTypes {
@@ -38,13 +43,13 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
 dependencies {
     implementation("org.json:json:20231013")
 
-    implementation("org.json:json:20231013")
     // AndroidX
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
